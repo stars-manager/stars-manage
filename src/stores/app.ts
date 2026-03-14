@@ -29,6 +29,10 @@ interface AppState {
   showFetchStarsModal: boolean;
   activeTab: 'stars' | 'labels';
   syncing: boolean;
+  lastSyncTime: number;
+  // 批量操作相关状态
+  selectedRepos: string[];
+  batchMode: boolean;
 
   // Actions
   setToken: (token: string) => Promise<void>;
@@ -48,6 +52,15 @@ interface AppState {
   syncToRepo: () => Promise<void>;
   logout: () => void;
   findOrCreateLabelByName: (name: string, type: 'custom' | 'generated') => string;
+  // 批量操作
+  toggleBatchMode: () => void;
+  toggleRepoSelection: (repoFullName: string) => void;
+  selectAllRepos: (repoFullNames: string[]) => void;
+  clearSelection: () => void;
+  batchAddLabels: (labelIds: string[]) => void;
+  batchRemoveLabels: (labelIds: string[]) => void;
+  batchDeleteRepos: () => void;
+  batchExportRepos: () => string;
 }
 
 const stateCreator: StateCreator<AppState> = (set, get) => ({
@@ -63,6 +76,9 @@ const stateCreator: StateCreator<AppState> = (set, get) => ({
   showFetchStarsModal: false,
   activeTab: 'stars',
   syncing: false,
+  lastSyncTime: 0,
+  selectedRepos: [],
+  batchMode: false,
 
   // Actions
   setToken: async (newToken: string) => {
@@ -119,6 +135,7 @@ const stateCreator: StateCreator<AppState> = (set, get) => ({
         stars: mergeResult.stars, 
         repos: mergeResult.repos,
         labels: mergeResult.labels,
+        lastSyncTime: Date.now(),
       });
       
       // 5. 返回合并统计信息
@@ -320,6 +337,118 @@ const stateCreator: StateCreator<AppState> = (set, get) => ({
     // 如果找到了新标签,返回其 ID;否则返回最后一个标签的 ID
     return newLabel?.id || newLabels[newLabels.length - 1]?.id || '';
   },
+
+  // 切换批量选择模式
+  toggleBatchMode: () => {
+    set((state) => ({
+      batchMode: !state.batchMode,
+      selectedRepos: [],
+    }));
+  },
+
+  // 切换单个项目选中状态
+  toggleRepoSelection: (repoFullName: string) => {
+    set((state) => {
+      const isSelected = state.selectedRepos.includes(repoFullName);
+      return {
+        selectedRepos: isSelected
+          ? state.selectedRepos.filter((name) => name !== repoFullName)
+          : [...state.selectedRepos, repoFullName],
+      };
+    });
+  },
+
+  // 全选指定项目
+  selectAllRepos: (repoFullNames: string[]) => {
+    set({ selectedRepos: repoFullNames });
+  },
+
+  // 清空选择
+  clearSelection: () => {
+    set({ selectedRepos: [] });
+  },
+
+  // 批量添加标签
+  batchAddLabels: (labelIds: string[]) => {
+    const { selectedRepos } = get();
+    if (selectedRepos.length === 0) return;
+
+    set((state) => {
+      const newRepos = { ...state.repos };
+      selectedRepos.forEach((repoFullName) => {
+        const existingRepo = state.repos[repoFullName] || {
+          customLabels: [],
+          generatedLabels: [],
+          description: null,
+          language: null,
+        };
+        const newCustomLabels = [...new Set([...existingRepo.customLabels, ...labelIds])];
+        newRepos[repoFullName] = {
+          ...existingRepo,
+          customLabels: newCustomLabels,
+        };
+      });
+      return { repos: newRepos };
+    });
+  },
+
+  // 批量移除标签
+  batchRemoveLabels: (labelIds: string[]) => {
+    const { selectedRepos } = get();
+    if (selectedRepos.length === 0) return;
+
+    set((state) => {
+      const newRepos = { ...state.repos };
+      selectedRepos.forEach((repoFullName) => {
+        const existingRepo = state.repos[repoFullName];
+        if (!existingRepo) return;
+        newRepos[repoFullName] = {
+          ...existingRepo,
+          customLabels: existingRepo.customLabels.filter((id) => !labelIds.includes(id)),
+          generatedLabels: existingRepo.generatedLabels.filter((id) => !labelIds.includes(id)),
+        };
+      });
+      return { repos: newRepos };
+    });
+  },
+
+  // 批量删除项目
+  batchDeleteRepos: () => {
+    const { selectedRepos } = get();
+    if (selectedRepos.length === 0) return;
+
+    set((state) => {
+      const newRepos = { ...state.repos };
+      const newStars = state.stars.filter(
+        (repo) => !selectedRepos.includes(repo.full_name)
+      );
+      selectedRepos.forEach((repoFullName) => {
+        delete newRepos[repoFullName];
+      });
+      return {
+        repos: newRepos,
+        stars: newStars,
+        selectedRepos: [],
+      };
+    });
+  },
+
+  // 批量导出选中项目
+  batchExportRepos: (): string => {
+    const { selectedRepos, stars, repos } = get();
+    if (selectedRepos.length === 0) return '[]';
+
+    const exportedData = selectedRepos.map((repoFullName) => {
+      const repo = stars.find((s) => s.full_name === repoFullName);
+      const repoInfo = repos[repoFullName];
+      return {
+        repo,
+        info: repoInfo,
+      };
+    });
+
+    return JSON.stringify(exportedData, null, 2);
+  },
 });
 
 // 使用类型断言解决 zustand persist 与 TypeScript strict mode 的兼容性问题
@@ -337,6 +466,7 @@ const persistedCreator = persist(stateCreator, {
     repos: state.repos,
     stars: state.stars,
     syncRepo: state.syncRepo,
+    lastSyncTime: state.lastSyncTime,
   }),
   // 数据迁移：将旧版本的 labels 字段迁移到 customLabels 和 generatedLabels
   migrate: (persistedState: unknown, _version: number) => {

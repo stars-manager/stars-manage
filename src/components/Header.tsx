@@ -21,12 +21,14 @@ export const Header: React.FC<HeaderProps> = ({ onOpenLabelManager }) => {
     syncRepo,
     labels,
     stars,
+    lastSyncTime,
   } = store;
 
   const [showTokenModal, setShowTokenModal] = useState(false);
   const [showSyncSettings, setShowSyncSettings] = useState(false);
   const [showPushConfirm, setShowPushConfirm] = useState(false);
   const [showAutoTagger, setShowAutoTagger] = useState(false);
+  const [showSyncConfirm, setShowSyncConfirm] = useState(false);
   const [inputToken, setInputToken] = useState(token);
   const [incrementalStats, setIncrementalStats] = useState<IncrementalStats | null>(null);
 
@@ -36,8 +38,8 @@ export const Header: React.FC<HeaderProps> = ({ onOpenLabelManager }) => {
     setShowTokenModal(true);
   };
 
-  // 同步 Stars
-  const handleSyncStars = async () => {
+  // 同步 Stars - 预处理检查
+  const handleSyncStars = () => {
     if (!token) {
       MessagePlugin.warning('请先设置 Token');
       handleOpenTokenModal();
@@ -53,6 +55,13 @@ export const Header: React.FC<HeaderProps> = ({ onOpenLabelManager }) => {
       setShowSyncSettings(true);
       return;
     }
+    // 显示确认弹窗
+    setShowSyncConfirm(true);
+  };
+
+  // 确认同步 Stars
+  const handleConfirmSync = async () => {
+    setShowSyncConfirm(false);
     try {
       const stats = await fetchStars();
       if (stats) {
@@ -184,6 +193,18 @@ export const Header: React.FC<HeaderProps> = ({ onOpenLabelManager }) => {
       </div>
 
       <Space>
+        {/* 最后同步时间 */}
+        {lastSyncTime > 0 && (
+          <span style={{ fontSize: '12px', color: '#8c8c8c', marginRight: '4px' }}>
+            最后同步: {new Date(lastSyncTime).toLocaleString('zh-CN', { 
+              month: 'numeric', 
+              day: 'numeric', 
+              hour: '2-digit', 
+              minute: '2-digit' 
+            })}
+          </span>
+        )}
+        
         {/* 同步 Stars */}
         <Button onClick={handleSyncStars} loading={loadingStars} title="从 GitHub 拉取最新的 Stars 列表">
           同步 Stars
@@ -529,6 +550,44 @@ export const Header: React.FC<HeaderProps> = ({ onOpenLabelManager }) => {
           {/* 提示信息 */}
           <p style={{ fontSize: '12px', color: '#999' }}>
             推送将更新仓库中的 stars.json 和 README.md 文件。
+          </p>
+        </div>
+      </Dialog>
+
+      {/* 同步 Stars 确认弹窗 */}
+      <Dialog
+        header="确认同步 Stars"
+        visible={showSyncConfirm}
+        onConfirm={handleConfirmSync}
+        onClose={() => setShowSyncConfirm(false)}
+        confirmBtn={{ 
+          content: '确认同步', 
+          loading: loadingStars, 
+          theme: 'primary',
+        }}
+        cancelBtn="取消"
+        width="500px"
+      >
+        <div style={{ padding: '12px 0' }}>
+          <div style={{ 
+            padding: '12px', 
+            background: '#fff7e6', 
+            border: '1px solid #ffd591',
+            borderRadius: '4px',
+            marginBottom: '16px'
+          }}>
+            <div style={{ fontSize: '14px', color: '#d46b08', fontWeight: 500, marginBottom: '8px' }}>
+              ⚠️ 同步会覆盖本地数据
+            </div>
+            <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '13px', color: '#874300', lineHeight: 1.8 }}>
+              <li>将从 GitHub 拉取最新的 Stars 列表</li>
+              <li>将从同步仓库读取已有的标签和备注数据</li>
+              <li>新数据会与本地数据合并，<strong>本地未保存的更改将被覆盖</strong></li>
+              <li>如需保留本地更改，请先点击"推送到仓库"保存数据</li>
+            </ul>
+          </div>
+          <p style={{ fontSize: '12px', color: '#8c8c8c' }}>
+            同步拉取仓库：<strong>{syncRepo}</strong>
           </p>
         </div>
       </Dialog>

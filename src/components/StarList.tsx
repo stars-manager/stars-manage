@@ -4,15 +4,21 @@ import { useAppStore } from "../stores/app";
 import { StarCard } from "./StarCard";
 import { LabelSelect, NO_LABEL_ID } from "./LabelSelect";
 import { chat, ChatResponse } from "../api/server";
+import { FilterPanel, AdvancedFilter } from "./FilterPanel";
+import { BatchActions } from "./BatchActions";
 
 type SortBy = "updated" | "name" | "stars";
 
 export const StarList: React.FC = () => {
-  const { stars, loadingStars, labels, getRepoLabels } = useAppStore();
+  const { stars, loadingStars, labels, getRepoLabels, batchMode, selectedRepos } = useAppStore();
   const [search, setSearch] = useState("");
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
   const [selectedLanguage, setSelectedLanguage] = useState<string>("");
   const [sortBy, setSortBy] = useState<SortBy>("updated");
+  
+  // 高级筛选状态
+  const [advancedFilter, setAdvancedFilter] = useState<AdvancedFilter | null>(null);
+  const [showAdvancedFilter, setShowAdvancedFilter] = useState(false);
   
   // 智能匹配相关状态
   const [smartQuery, setSmartQuery] = useState("");
@@ -159,6 +165,31 @@ ${projectDocs.join("\n")}`;
       });
     }
 
+    // 应用高级筛选
+    if (advancedFilter) {
+      result = result.filter((repo) => {
+        // Stars 数量筛选
+        if (repo.stargazers_count < advancedFilter.starsMin) {
+          return false;
+        }
+        if (repo.stargazers_count > advancedFilter.starsMax) {
+          return false;
+        }
+
+        // 更新时间筛选
+        const updatedDate = new Date(repo.updated_at);
+        const now = new Date();
+        const diffDays = Math.floor(
+          (now.getTime() - updatedDate.getTime()) / (1000 * 60 * 60 * 24)
+        );
+        if (diffDays > advancedFilter.updatedDays) {
+          return false;
+        }
+
+        return true;
+      });
+    }
+
     result.sort((a, b) => {
       switch (sortBy) {
         case "name":
@@ -174,7 +205,7 @@ ${projectDocs.join("\n")}`;
     });
 
     return result;
-  }, [stars, search, selectedLabels, selectedLanguage, sortBy, smartMatchedRepos, getRepoLabels]);
+  }, [stars, search, selectedLabels, selectedLanguage, sortBy, smartMatchedRepos, getRepoLabels, advancedFilter]);
 
   // 提取所有语言并生成选项
   const languageOptions = useMemo(() => {
@@ -283,6 +314,15 @@ ${projectDocs.join("\n")}`;
                 options={[{ label: "全部", value: "" }, ...languageOptions]}
               />
             </div>
+            {/* 高级筛选按钮 */}
+            <Button
+              variant={showAdvancedFilter ? "base" : "outline"}
+              theme={showAdvancedFilter ? "primary" : "default"}
+              size="small"
+              onClick={() => setShowAdvancedFilter(true)}
+            >
+              高级筛选
+            </Button>
           </Space>
           <span style={{ color: "#666" }}>共 {filteredStars.length} 个</span>
         </div>
@@ -312,6 +352,19 @@ ${projectDocs.join("\n")}`;
           <StarCard key={repo.full_name} repo={repo} />
         ))
       )}
+
+      {/* 批量操作工具栏 */}
+      {batchMode && selectedRepos.length > 0 && (
+        <BatchActions selectedCount={selectedRepos.length} />
+      )}
+
+      {/* 高级筛选面板 */}
+      <FilterPanel
+        visible={showAdvancedFilter}
+        onClose={() => setShowAdvancedFilter(false)}
+        filter={advancedFilter}
+        onFilterChange={setAdvancedFilter}
+      />
     </div>
   );
 };
