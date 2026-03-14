@@ -277,7 +277,15 @@ const stateCreator: StateCreator<AppState> = (set, get) => ({
       );
     } catch (error: unknown) {
       const err = error as Error;
-      throw new Error(err.message || '推送失败，请检查网络或 Token 权限');
+      const message = err.message || '推送失败，请检查网络或 Token 权限';
+      // 使用扩展 Error 类来保留 cause
+      class SyncError extends Error {
+        constructor(msg: string, public cause?: unknown) {
+          super(msg);
+          this.name = 'SyncError';
+        }
+      }
+      throw new SyncError(message, error);
     } finally {
       set({ syncing: false });
     }
@@ -331,37 +339,39 @@ const persistedCreator = persist(stateCreator, {
     syncRepo: state.syncRepo,
   }),
   // 数据迁移：将旧版本的 labels 字段迁移到 customLabels 和 generatedLabels
-  migrate: (persistedState: any, _version: number) => {
+  migrate: (persistedState: unknown, _version: number) => {
+    const state = persistedState as { repos?: Record<string, { labels?: string[]; customLabels?: string[]; generatedLabels?: string[]; description?: string | null; language?: string | null; remark?: string }> };
     // 如果 repos 中有任何 repo 使用旧的 labels 字段，进行迁移
-    if (persistedState.repos) {
-      const migratedRepos: any = {};
+    if (state.repos) {
+      const migratedRepos: Record<string, { customLabels: string[]; generatedLabels: string[]; description: string | null; language: string | null; remark?: string }> = {};
 
-      Object.entries(persistedState.repos).forEach(([repoFullName, repoInfo]: [string, any]) => {
+      Object.entries(state.repos).forEach(([repoFullName, repoInfo]) => {
         // 检查是否使用旧的 labels 字段
         if (repoInfo.labels && !repoInfo.customLabels) {
           // 迁移：将所有旧标签视为自定义标签
           migratedRepos[repoFullName] = {
-            ...repoInfo,
             customLabels: repoInfo.labels || [],
             generatedLabels: [],
-            labels: undefined, // 删除旧字段
+            description: repoInfo.description ?? null,
+            language: repoInfo.language ?? null,
+            remark: repoInfo.remark,
           };
         } else {
           // 已经是新格式，直接使用
           migratedRepos[repoFullName] = {
             customLabels: repoInfo.customLabels || [],
             generatedLabels: repoInfo.generatedLabels || [],
-            description: repoInfo.description,
-            language: repoInfo.language,
+            description: repoInfo.description ?? null,
+            language: repoInfo.language ?? null,
             remark: repoInfo.remark,
           };
         }
       });
 
-      persistedState.repos = migratedRepos;
+      state.repos = migratedRepos;
     }
 
-    return persistedState;
+    return state;
   },
   version: 1, // 版本号，用于迁移
 });

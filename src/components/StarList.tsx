@@ -8,7 +8,7 @@ import { chat, ChatResponse } from "../api/server";
 type SortBy = "updated" | "name" | "stars";
 
 export const StarList: React.FC = () => {
-  const { stars, loadingStars, labels, repos, getRepoLabels } = useAppStore();
+  const { stars, loadingStars, labels, getRepoLabels } = useAppStore();
   const [search, setSearch] = useState("");
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
   const [selectedLanguage, setSelectedLanguage] = useState<string>("");
@@ -105,7 +105,7 @@ ${projectDocs.join("\n")}`;
     } finally {
       setIsSmartMatching(false);
     }
-  }, [smartQuery, stars, repos, labels, sessionId]);
+  }, [smartQuery, stars, labels, getRepoLabels, sessionId]);
 
   const filteredStars = useMemo(() => {
     let result = [...stars];
@@ -174,7 +174,7 @@ ${projectDocs.join("\n")}`;
     });
 
     return result;
-  }, [stars, search, selectedLabels, selectedLanguage, sortBy, repos, smartMatchedRepos]);
+  }, [stars, search, selectedLabels, selectedLanguage, sortBy, smartMatchedRepos, getRepoLabels]);
 
   // 提取所有语言并生成选项
   const languageOptions = useMemo(() => {

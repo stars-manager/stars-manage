@@ -1,5 +1,8 @@
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyFunction = (...args: any[]) => any;
+
 // 防抖函数
-export const debounce = <T extends (...args: any[]) => any>(
+export const debounce = <T extends AnyFunction>(
   func: T,
   wait: number
 ): ((...args: Parameters<T>) => void) => {
@@ -17,7 +20,7 @@ export const debounce = <T extends (...args: any[]) => any>(
 };
 
 // 节流函数
-export const throttle = <T extends (...args: any[]) => any>(
+export const throttle = <T extends AnyFunction>(
   func: T,
   limit: number
 ): ((...args: Parameters<T>) => void) => {

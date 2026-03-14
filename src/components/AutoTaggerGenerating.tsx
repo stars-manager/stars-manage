@@ -1,10 +1,11 @@
 import React from 'react';
 import { Loading, Dialog } from 'tdesign-react';
+import { PendingTagChange } from '../stores/app';
 
 interface AutoTaggerGeneratingProps {
   visible: boolean;
   onClose: () => void;
-  _onGenerated?: (changes: any[]) => void;
+  _onGenerated?: (changes: PendingTagChange[]) => void;
   generatingProgress: { current: number; total: number };
 }
 

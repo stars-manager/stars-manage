@@ -80,8 +80,9 @@ export const Header: React.FC<HeaderProps> = ({ onOpenLabelManager }) => {
       } else {
         MessagePlugin.success('Stars 同步成功');
       }
-    } catch (error: any) {
-      MessagePlugin.error(error.message || 'Stars 同步失败');
+    } catch (error) {
+      const err = error as Error;
+      MessagePlugin.error(err.message || 'Stars 同步失败');
     }
   };
 
@@ -140,8 +141,9 @@ export const Header: React.FC<HeaderProps> = ({ onOpenLabelManager }) => {
       await syncToRepo();
       MessagePlugin.success('数据已推送到仓库');
       setShowPushConfirm(false);
-    } catch (error: any) {
-      MessagePlugin.error(error.message || '推送失败');
+    } catch (error) {
+      const err = error as Error;
+      MessagePlugin.error(err.message || '推送失败');
     }
   };
 
@@ -157,7 +159,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenLabelManager }) => {
       MessagePlugin.success('Token 验证成功');
       setInputToken('');
       setShowTokenModal(false);
-    } catch (error) {
+    } catch {
       MessagePlugin.error('Token 验证失败，请检查');
     }
   };

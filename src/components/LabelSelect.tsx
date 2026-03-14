@@ -61,7 +61,7 @@ export const LabelSelect: React.FC<LabelSelectProps> = ({
   return (
     <Select
       value={value}
-      onChange={(val: any) => {
+      onChange={(val) => {
         const newValue = Array.isArray(val) ? val : [val];
         onChange(newValue as string[]);
       }}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Dialog, Radio, Select, Input, Button, MessagePlugin } from 'tdesign-react';
 import { useAppStore } from '../stores/app';
 import { getUserRepos, createRepo, RepoInfo } from '../api/github';
@@ -19,23 +19,23 @@ export const SyncSettings: React.FC<SyncSettingsProps> = ({ visible, onClose }) 
   const [loadingRepos, setLoadingRepos] = useState(false);
 
   // 加载用户仓库列表
-  useEffect(() => {
-    if (visible && token) {
-      loadRepos();
-    }
-  }, [visible, token]);
-
-  const loadRepos = async () => {
+  const loadRepos = useCallback(async () => {
     setLoadingRepos(true);
     try {
       const userRepos = await getUserRepos(token);
       setRepos(userRepos);
-    } catch (error) {
+    } catch {
       MessagePlugin.error('获取仓库列表失败');
     } finally {
       setLoadingRepos(false);
     }
-  };
+  }, [token]);
+
+  useEffect(() => {
+    if (visible && token) {
+      loadRepos();
+    }
+  }, [visible, token, loadRepos]);
 
   const handleConfirm = async () => {
     setLoading(true);
@@ -75,8 +75,9 @@ export const SyncSettings: React.FC<SyncSettingsProps> = ({ visible, onClose }) 
         
         // 不关闭弹窗，让用户看到新创建的仓库已被选中
       }
-    } catch (error: any) {
-      MessagePlugin.error(error.message || '操作失败');
+    } catch (error) {
+      const err = error as Error;
+      MessagePlugin.error(err.message || '操作失败');
     } finally {
       setLoading(false);
     }

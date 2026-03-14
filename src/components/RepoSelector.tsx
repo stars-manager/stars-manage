@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Radio, Select, Input, Button, MessagePlugin } from 'tdesign-react';
 import { useAppStore } from '../stores/app';
 import { getUserRepos, createRepo, RepoInfo } from '../api/github';
@@ -29,33 +29,33 @@ export const RepoSelector: React.FC<RepoSelectorProps> = ({
   const [loadingRepos, setLoadingRepos] = useState(false);
 
   // 加载用户仓库列表
-  useEffect(() => {
-    if (token) {
-      loadRepos();
-    }
-  }, [token]);
-
-  useEffect(() => {
-    setSelectedRepo(value);
-  }, [value]);
-
-  const loadRepos = async () => {
+  const loadRepos = useCallback(async () => {
     setLoadingRepos(true);
     try {
       const userRepos = await getUserRepos(token);
       setRepos(userRepos);
-      
+
       // 刷新后恢复到已确认的仓库
       if (confirmedValue) {
         setSelectedRepo(confirmedValue);
         onChange(confirmedValue);
       }
-    } catch (error) {
+    } catch {
       MessagePlugin.error('获取仓库列表失败');
     } finally {
       setLoadingRepos(false);
     }
-  };
+  }, [token, confirmedValue, onChange]);
+
+  useEffect(() => {
+    if (token) {
+      loadRepos();
+    }
+  }, [token, loadRepos]);
+
+  useEffect(() => {
+    setSelectedRepo(value);
+  }, [value]);
 
   const handleModeChange = (newMode: 'select' | 'create') => {
     setMode(newMode);
@@ -92,8 +92,9 @@ export const RepoSelector: React.FC<RepoSelectorProps> = ({
       
       // 清空输入框
       setNewRepoName('');
-    } catch (error: any) {
-      MessagePlugin.error(error.message || '创建仓库失败');
+    } catch (error) {
+      const err = error as Error;
+      MessagePlugin.error(err.message || '创建仓库失败');
     }
   };
 

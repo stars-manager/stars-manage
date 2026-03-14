@@ -45,7 +45,7 @@ const MainContent: React.FC = () => {
               <Button onClick={async () => {
                 await fetchStars();
                 setShowFetchStarsModal(false);
-                alert('Stars 拉取成功');
+                MessagePlugin.success('Stars 拉取成功');
               }}>拉取</Button>
               <Button variant="outline" onClick={() => setShowFetchStarsModal(false)}>忽略</Button>
             </Space>

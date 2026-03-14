@@ -1,12 +1,23 @@
 // AutoTagger 相关工具函数
+import { GitHubRepo } from '../types';
 
 // 每批次处理的项目数（后端限制 20 个）
 export const BATCH_SIZE = 20;
 
+// Tree 节点类型
+interface TreeNode {
+  value: string;
+  label: string;
+  children?: TreeNode[];
+}
+
 // 构建树形数据
-export const buildTreeData = (items: any[], itemToNode: (item: any) => any) => {
+export const buildTreeData = (
+  items: GitHubRepo[],
+  itemToNode: (item: GitHubRepo) => TreeNode
+): TreeNode[] => {
   const totalBatches = Math.ceil(items.length / BATCH_SIZE);
-  const batches: any[] = [];
+  const batches: TreeNode[] = [];
 
   for (let i = 0; i < totalBatches; i++) {
     const start = i * BATCH_SIZE + 1;
@@ -30,11 +41,11 @@ export const buildTreeData = (items: any[], itemToNode: (item: any) => any) => {
 // 计算 Tree 的 checked 值
 export const calculateTreeChecked = (
   selectedItems: string[],
-  allItems: any[],
-  getItemKey: (item: any) => string
-) => {
+  allItems: GitHubRepo[],
+  getItemKey: (item: GitHubRepo) => string
+): string[] => {
   const selectedSet = new Set(selectedItems);
-  
+
   // 检查是否全选
   const allSelected = allItems.length > 0 && allItems.every(item => selectedSet.has(getItemKey(item)));
   if (allSelected) {
@@ -67,12 +78,12 @@ export const calculateTreeChecked = (
 
 // 解析 Tree 的选中值
 export const parseTreeValue = (
-  value: any[],
-  allItems: any[],
-  getItemKey: (item: any) => string
-) => {
+  value: string[],
+  allItems: GitHubRepo[],
+  getItemKey: (item: GitHubRepo) => string
+): string[] => {
   if (!value || value.length === 0) return [];
-  
+
   // 如果选中的包含 'all'，返回所有项目
   if (value.includes('all')) {
     return allItems.map(getItemKey);

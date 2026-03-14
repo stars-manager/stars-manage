@@ -3,6 +3,7 @@ import { Button, Space, Dialog, Tag, Loading, Tree, Input, MessagePlugin } from 
 import { useAppStore, PendingTagChange } from '../stores/app';
 import { generateStarsTags, ProjectInfoForTags } from '../api/server';
 import { buildTreeData, calculateTreeChecked, parseTreeValue, BATCH_SIZE } from '../utils/autoTaggerUtils';
+import { GitHubRepo } from '../types';
 
 interface AutoTaggerProps {
   visible: boolean;
@@ -10,7 +11,7 @@ interface AutoTaggerProps {
 }
 
 export const AutoTagger: React.FC<AutoTaggerProps> = ({ visible, onClose }) => {
-  const { stars, repos, labels, findOrCreateLabelByName, setRepoLabels, getRepoLabels } = useAppStore();
+  const { stars, repos, findOrCreateLabelByName, setRepoLabels, getRepoLabels } = useAppStore();
 
   // 状态
   const [step, setStep] = useState<'config' | 'generating' | 'confirm'>('config');
@@ -46,7 +47,7 @@ export const AutoTagger: React.FC<AutoTaggerProps> = ({ visible, onClose }) => {
     });
 
     return { withCustomTags, withGeneratedTags, withoutTags };
-  }, [stars, repos, labels]); // 直接依赖 labels 而不是 labelTypeMap
+  }, [stars, repos]);
 
   // 获取未设置标签的项目（没有任何标签）
   const untaggedRepos = (stars || []).filter(repo => {
@@ -71,7 +72,7 @@ export const AutoTagger: React.FC<AutoTaggerProps> = ({ visible, onClose }) => {
   // 构建未设置标签项目的树形数据（使用工具函数）
   const untaggedTreeData = useMemo(() => {
     const repos = filteredUntaggedRepos || [];
-    return buildTreeData(repos, (repo: any) => ({
+    return buildTreeData(repos, (repo: GitHubRepo) => ({
       value: repo.full_name,
       label: repo.language ? `${repo.full_name} (${repo.language})` : repo.full_name,
       repo,
@@ -80,13 +81,14 @@ export const AutoTagger: React.FC<AutoTaggerProps> = ({ visible, onClose }) => {
 
   // 获取 Tree 的 checked 值（使用工具函数）
   const untaggedTreeChecked = useMemo(() => {
-    return calculateTreeChecked(selectedRepos, filteredUntaggedRepos || [], (repo: any) => repo.full_name);
+    return calculateTreeChecked(selectedRepos, filteredUntaggedRepos || [], (repo: GitHubRepo) => repo.full_name);
   }, [selectedRepos, filteredUntaggedRepos]);
 
   // 处理 Tree 的选中变化（使用工具函数）
-  const handleUntaggedCheck = useCallback((value: any, _context: any) => {
+  const handleUntaggedCheck = useCallback((value: (string | number)[], _context: unknown) => {
     const repos = filteredUntaggedRepos || [];
-    const parsed = parseTreeValue(value || [], repos, (repo: any) => repo.full_name);
+    const stringValue = value.map(v => String(v));
+    const parsed = parseTreeValue(stringValue, repos, (repo: GitHubRepo) => repo.full_name);
     setSelectedRepos(parsed);
   }, [filteredUntaggedRepos]);
 
@@ -229,13 +231,23 @@ export const AutoTagger: React.FC<AutoTaggerProps> = ({ visible, onClose }) => {
       setPendingChanges(changes);
       setSelectedChanges(changes.map(c => c.repoFullName));
       setStep('confirm');
-    } catch (_error) {
+    } catch {
       MessagePlugin.error('标签生成失败');
       setStep('config');
     } finally {
       setIsGenerating(false);
     }
-  }, [selectedRepos, untaggedRepos, repos]);
+  }, [selectedRepos, untaggedRepos, getRepoLabels]);
+
+  // 重置状态
+  const resetState = useCallback(() => {
+    setStep('config');
+    setPendingChanges([]);
+    setSelectedRepos([]);
+    setSelectedChanges([]);
+    setSearchKeyword('');
+    setGeneratingProgress({ current: 0, total: 0 });
+  }, []);
 
   // 应用选中的标签变更
   const handleApply = useCallback(async () => {
@@ -270,22 +282,12 @@ export const AutoTagger: React.FC<AutoTaggerProps> = ({ visible, onClose }) => {
       MessagePlugin.success(`已为 ${appliedCount} 个项目应用标签`);
       onClose();
       resetState();
-    } catch (_error) {
+    } catch {
       MessagePlugin.error('应用标签失败');
     } finally {
       setIsApplying(false);
     }
-  }, [pendingChanges, selectedChanges, findOrCreateLabelByName, setRepoLabels, onClose]);
-
-  // 重置状态
-  const resetState = useCallback(() => {
-    setStep('config');
-    setPendingChanges([]);
-    setSelectedRepos([]);
-    setSelectedChanges([]);
-    setSearchKeyword('');
-    setGeneratingProgress({ current: 0, total: 0 });
-  }, []);
+  }, [pendingChanges, selectedChanges, findOrCreateLabelByName, setRepoLabels, onClose, resetState]);
 
   // 关闭时重置
   const handleClose = useCallback(() => {
