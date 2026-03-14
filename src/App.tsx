@@ -29,25 +29,45 @@ const MainContent: React.FC = () => {
           alignItems: 'center',
           justifyContent: 'center',
           zIndex: 1000,
+          backdropFilter: 'blur(4px)',
         }}>
           <div style={{
             backgroundColor: '#fff',
-            borderRadius: '8px',
-            padding: '24px',
-            width: '400px',
+            borderRadius: '12px',
+            padding: '32px',
+            width: '420px',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
           }}>
-            <h3 style={{ marginBottom: '16px' }}>拉取 Stars</h3>
-            <p style={{ marginBottom: '16px', color: '#666' }}>是否从 GitHub 拉取最新的 Stars 列表？</p>
-            <p style={{ fontSize: '12px', color: '#999', marginBottom: '16px' }}>
-              点击「拉取」将从 GitHub 获取最新数据，点击「忽略」将使用本地缓存。
-            </p>
+            <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+              <div style={{ fontSize: '48px', marginBottom: '16px' }}>⭐</div>
+              <h3 style={{ marginBottom: '12px', fontSize: '20px', color: '#333' }}>拉取最新 Stars</h3>
+              <p style={{ marginBottom: '8px', color: '#666', lineHeight: 1.6 }}>
+                是否从 GitHub 拉取最新的 Stars 列表？
+              </p>
+              <p style={{ fontSize: '13px', color: '#999', lineHeight: 1.5 }}>
+                点击「拉取」将从 GitHub 获取最新数据<br />
+                点击「忽略」将使用本地缓存
+              </p>
+            </div>
             <Space>
-              <Button onClick={async () => {
-                await fetchStars();
-                setShowFetchStarsModal(false);
-                MessagePlugin.success('Stars 拉取成功');
-              }}>拉取</Button>
-              <Button variant="outline" onClick={() => setShowFetchStarsModal(false)}>忽略</Button>
+              <Button 
+                theme="primary"
+                onClick={async () => {
+                  await fetchStars();
+                  setShowFetchStarsModal(false);
+                  MessagePlugin.success('Stars 拉取成功');
+                }}
+                style={{ minWidth: '120px' }}
+              >
+                拉取
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => setShowFetchStarsModal(false)}
+                style={{ minWidth: '120px' }}
+              >
+                忽略
+              </Button>
             </Space>
           </div>
         </div>

@@ -1,9 +1,9 @@
-import React, { useState, useMemo, useCallback } from "react";
-import { Input, Select, Space, Loading, Button, MessagePlugin } from "tdesign-react";
+import React, { useState, useMemo } from "react";
+import { Select, Loading, Button, Input, Dialog } from "tdesign-react";
 import { useAppStore } from "../stores/app";
 import { StarCard } from "./StarCard";
 import { LabelSelect, NO_LABEL_ID } from "./LabelSelect";
-import { chat, ChatResponse } from "../api/server";
+import { SmartMatcher } from "./SmartMatcher";
 import { FilterPanel, AdvancedFilter } from "./FilterPanel";
 import { BatchActions } from "./BatchActions";
 
@@ -20,106 +20,14 @@ export const StarList: React.FC = () => {
   const [advancedFilter, setAdvancedFilter] = useState<AdvancedFilter | null>(null);
   const [showAdvancedFilter, setShowAdvancedFilter] = useState(false);
   
-  // 智能匹配相关状态
-  const [smartQuery, setSmartQuery] = useState("");
-  const [isSmartMatching, setIsSmartMatching] = useState(false);
-  const [smartMatchedRepos, setSmartMatchedRepos] = useState<string[]>([]);
-  const [sessionId] = useState(() => `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
-
-  // 清除智能匹配结果
-  const clearSmartMatch = useCallback(() => {
-    setSmartMatchedRepos([]);
-    setSmartQuery("");
-  }, []);
-
-  // 智能匹配处理
-  const handleSmartMatch = useCallback(async () => {
-    if (!smartQuery.trim()) {
-      MessagePlugin.warning("请输入查询内容");
-      return;
-    }
-
-    if (stars.length === 0) {
-      MessagePlugin.warning("暂无项目数据");
-      return;
-    }
-
-    setIsSmartMatching(true);
-    
-    try {
-      // 构建项目列表文档
-      const projectDocs = stars.slice(0, 100).map(repo => {
-        const repoLabels = getRepoLabels(repo.full_name);
-        const labelNames = repoLabels
-          .map(id => labels.find(l => l.id === id)?.name)
-          .filter(Boolean)
-          .join(", ");
-        
-        return [
-          `项目：${repo.full_name}`,
-          repo.description ? `描述：${repo.description}` : null,
-          repo.language ? `语言：${repo.language}` : null,
-          labelNames ? `标签：${labelNames}` : null,
-        ].filter(Boolean).join(" | ");
-      });
-
-      const query = `请从以下项目中找出与"${smartQuery}"最相关的项目。返回项目名称列表（owner/repo格式），每行一个，最多返回20个。如果找不到相关项目，返回"无"。
-
-项目列表：
-${projectDocs.join("\n")}`;
-
-      const response: ChatResponse = await chat({
-        message: query,
-        session_id: sessionId,
-      });
-
-      // 解析响应，提取项目名称
-      const lines = response.reply.split("\n").map((line: string) => line.trim()).filter(Boolean);
-      const matchedNames: string[] = [];
-      
-      for (const line of lines) {
-        // 尝试匹配 owner/repo 格式
-        const match = line.match(/([a-zA-Z0-9_-]+\/[a-zA-Z0-9_.-]+)/);
-        if (match && stars.some(s => s.full_name === match[1])) {
-          matchedNames.push(match[1]);
-        }
-      }
-
-      if (matchedNames.length === 0) {
-        // 如果没有匹配到，可能返回的是项目名称
-        for (const line of lines) {
-          const found = stars.find(s => 
-            s.full_name.toLowerCase().includes(line.toLowerCase()) ||
-            s.name.toLowerCase() === line.toLowerCase()
-          );
-          if (found && !matchedNames.includes(found.full_name)) {
-            matchedNames.push(found.full_name);
-          }
-        }
-      }
-
-      if (matchedNames.length === 0) {
-        MessagePlugin.info("未找到匹配的项目");
-        setSmartMatchedRepos([]);
-      } else {
-        setSmartMatchedRepos(matchedNames);
-        MessagePlugin.success(`找到 ${matchedNames.length} 个相关项目`);
-      }
-    } catch (error) {
-      console.error("Smart match error:", error);
-      MessagePlugin.error("智能匹配失败，请确保后端服务正在运行（http://localhost:8080）");
-    } finally {
-      setIsSmartMatching(false);
-    }
-  }, [smartQuery, stars, labels, getRepoLabels, sessionId]);
+  // 思考助手状态
+  const [showSmartMatcher, setShowSmartMatcher] = useState(false);
+  
+  // 筛选器折叠状态
+  const [filterExpanded, setFilterExpanded] = useState(true);
 
   const filteredStars = useMemo(() => {
     let result = [...stars];
-
-    // 智能匹配结果优先
-    if (smartMatchedRepos.length > 0) {
-      result = result.filter(repo => smartMatchedRepos.includes(repo.full_name));
-    }
 
     // 标签筛选
     if (selectedLabels.length > 0) {
@@ -154,7 +62,7 @@ ${projectDocs.join("\n")}`;
       result = result.filter((repo) => repo.language === selectedLanguage);
     }
 
-    // 搜索筛选（搜索仓库名和介绍）
+    // 模糊搜索
     if (search) {
       const keyword = search.toLowerCase();
       result = result.filter((repo) => {
@@ -205,7 +113,7 @@ ${projectDocs.join("\n")}`;
     });
 
     return result;
-  }, [stars, search, selectedLabels, selectedLanguage, sortBy, smartMatchedRepos, getRepoLabels, advancedFilter]);
+  }, [stars, search, selectedLabels, selectedLanguage, sortBy, getRepoLabels, advancedFilter]);
 
   // 提取所有语言并生成选项
   const languageOptions = useMemo(() => {
@@ -222,123 +130,110 @@ ${projectDocs.join("\n")}`;
 
   return (
     <div>
-      <div style={{ marginBottom: "16px" }}>
-        {/* 智能匹配行 */}
-        <div
-          style={{
-            marginBottom: "12px",
-            padding: "12px",
-            background: "#f5f5f5",
-            borderRadius: "8px",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <span style={{ fontSize: "14px", color: "#666", minWidth: "80px" }}>
-              智能匹配：
+      {/* 筛选和搜索区 */}
+      <div 
+        style={{ 
+          marginBottom: "16px",
+          background: "#fff",
+          borderRadius: "8px",
+          padding: "16px",
+          border: "1px solid #e7e7e7",
+        }}
+      >
+        {/* 折叠按钮 */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: filterExpanded ? "16px" : "0" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <span style={{ fontSize: "16px", fontWeight: 600 }}>筛选</span>
+            <span style={{ 
+              padding: "4px 12px", 
+              background: "#e7f3ff", 
+              color: "#0052cc", 
+              borderRadius: "12px",
+              fontSize: "13px" 
+            }}>
+              {filteredStars.length} 个项目
             </span>
-            <Input
-              placeholder="输入需求，如：找一个 React 状态管理库"
-              value={smartQuery}
-              onChange={(value) => setSmartQuery(value)}
-              style={{ flex: 1 }}
-              onEnter={handleSmartMatch}
-            />
-            <Button
-              theme="primary"
-              onClick={handleSmartMatch}
-              loading={isSmartMatching}
-            >
-              匹配
-            </Button>
-            {smartMatchedRepos.length > 0 && (
-              <Button variant="outline" onClick={clearSmartMatch}>
-                清除结果
-              </Button>
-            )}
           </div>
-          {smartMatchedRepos.length > 0 && (
-            <div style={{ marginTop: "8px", fontSize: "12px", color: "#2BA47D" }}>
-              已筛选出 {smartMatchedRepos.length} 个相关项目
-            </div>
-          )}
-        </div>
-
-        {/* 第一行：筛选和排序 */}
-        <div
-          style={{
-            marginBottom: "12px",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <Space>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span style={{ fontSize: "14px", color: "#666", width: "60px", display: "inline-block", textAlign: "right" }}>
-                排序：
-              </span>
-              <Select
-                value={sortBy}
-                onChange={(value) => setSortBy(value as SortBy)}
-                style={{ width: "120px" }}
-                options={[
-                  { label: "最近更新", value: "updated" },
-                  { label: "名称", value: "name" },
-                  { label: "星标数", value: "stars" },
-                ]}
-              />
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span style={{ fontSize: "14px", color: "#666", width: "60px", display: "inline-block", textAlign: "right" }}>
-                标签：
-              </span>
-              <LabelSelect
-                value={selectedLabels}
-                onChange={setSelectedLabels}
-                labels={labels}
-                placeholder="筛选标签"
-                style={{ minWidth: "150px", maxWidth: "400px" }}
-                showNoLabelOption={true}
-              />
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span style={{ fontSize: "14px", color: "#666", width: "60px", display: "inline-block", textAlign: "right" }}>
-                语言：
-              </span>
-              <Select
-                value={selectedLanguage}
-                onChange={(value) => setSelectedLanguage(value as string)}
-                placeholder="全部"
-                clearable
-                style={{ width: "150px" }}
-                options={[{ label: "全部", value: "" }, ...languageOptions]}
-              />
-            </div>
-            {/* 高级筛选按钮 */}
+          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
             <Button
-              variant={showAdvancedFilter ? "base" : "outline"}
-              theme={showAdvancedFilter ? "primary" : "default"}
+              variant="outline"
               size="small"
-              onClick={() => setShowAdvancedFilter(true)}
+              onClick={() => setShowSmartMatcher(true)}
+              title="使用 AI 思考和总结，帮助你找到最适合的项目"
             >
-              高级筛选
+              💡 思考助手
             </Button>
-          </Space>
-          <span style={{ color: "#666" }}>共 {filteredStars.length} 个</span>
+            <Button 
+              variant="text" 
+              size="small"
+              onClick={() => setFilterExpanded(!filterExpanded)}
+              style={{ color: "#666" }}
+            >
+              {filterExpanded ? "收起" : "展开"} {filterExpanded ? "↑" : "↓"}
+            </Button>
+          </div>
         </div>
 
-        {/* 第二行：搜索 */}
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <span style={{ fontSize: "14px", color: "#666", width: "60px", display: "inline-block", textAlign: "right" }}>
-            搜索：
-          </span>
-          <Input
-            placeholder="搜索项目..."
-            value={search}
-            onChange={(value) => setSearch(value)}
-            style={{ width: "300px" }}
-          />
-        </div>
+        {filterExpanded && (
+          <>
+            {/* 搜索框 */}
+            <div style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={{ fontSize: "14px", color: "#666", minWidth: "60px" }}>搜索：</span>
+              <Input
+                placeholder="输入项目名称或描述进行模糊搜索..."
+                value={search}
+                onChange={(value) => setSearch(value)}
+                clearable
+                style={{ flex: 1 }}
+              />
+            </div>
+
+            {/* 筛选行：标签、语言和排序 */}
+            <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", flex: 1, minWidth: "200px" }}>
+                <LabelSelect
+                  value={selectedLabels}
+                  onChange={setSelectedLabels}
+                  labels={labels}
+                  placeholder="筛选标签"
+                  style={{ flex: 1 }}
+                  showNoLabelOption={true}
+                />
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: "150px" }}>
+                <Select
+                  value={selectedLanguage}
+                  onChange={(value) => setSelectedLanguage(value as string)}
+                  placeholder="全部语言"
+                  clearable
+                  style={{ minWidth: "120px" }}
+                  options={[{ label: "全部", value: "" }, ...languageOptions]}
+                />
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <span style={{ fontSize: "14px", color: "#666" }}>排序：</span>
+                <Select
+                  value={sortBy}
+                  onChange={(value) => setSortBy(value as SortBy)}
+                  style={{ width: "140px" }}
+                  options={[
+                    { label: "最近更新", value: "updated" },
+                    { label: "名称", value: "name" },
+                    { label: "星标数", value: "stars" },
+                  ]}
+                />
+              </div>
+              <Button
+                variant={showAdvancedFilter ? "base" : "outline"}
+                theme={showAdvancedFilter ? "primary" : "default"}
+                size="small"
+                onClick={() => setShowAdvancedFilter(true)}
+              >
+                高级筛选
+              </Button>
+            </div>
+          </>
+        )}
       </div>
 
       {loadingStars ? (
@@ -365,6 +260,25 @@ ${projectDocs.join("\n")}`;
         filter={advancedFilter}
         onFilterChange={setAdvancedFilter}
       />
+
+      {/* 思考助手弹窗 */}
+      <Dialog
+        header="💡 思考助手"
+        visible={showSmartMatcher}
+        onClose={() => setShowSmartMatcher(false)}
+        width="700px"
+        dialogClassName="smart-matcher-dialog"
+      >
+        <div style={{ padding: "12px 0", maxHeight: "600px", overflowY: "auto" }}>
+          <SmartMatcher
+            onReposMatched={() => {
+              // 关闭对话框
+              setShowSmartMatcher(false);
+            }}
+            onClear={() => {}}
+          />
+        </div>
+      </Dialog>
     </div>
   );
 };

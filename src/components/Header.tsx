@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Button, Input, Space, Dialog, Tag, MessagePlugin } from 'tdesign-react';
+import { Button, Input, Space, Dialog, Tag, MessagePlugin, Dropdown, Popup, DropdownOption } from 'tdesign-react';
 import { useAppStore } from '../stores/app';
 import { SyncSettings } from './SyncSettings';
 import { AutoTagger } from './AutoTagger';
@@ -19,7 +19,6 @@ export const Header: React.FC<HeaderProps> = ({ onOpenLabelManager }) => {
     syncToRepo,
     syncing,
     syncRepo,
-    labels,
     stars,
     lastSyncTime,
   } = store;
@@ -31,6 +30,13 @@ export const Header: React.FC<HeaderProps> = ({ onOpenLabelManager }) => {
   const [showSyncConfirm, setShowSyncConfirm] = useState(false);
   const [inputToken, setInputToken] = useState(token);
   const [incrementalStats, setIncrementalStats] = useState<IncrementalStats | null>(null);
+
+  // 设置下拉菜单选项
+  const settingsOptions = [
+    { content: '设置 Token', value: 'token' },
+    { content: '标签设置', value: 'labels' },
+    { content: '同步设置', value: 'sync' },
+  ];
 
   // 打开 Token 弹窗时，回显已保存的 token
   const handleOpenTokenModal = () => {
@@ -173,44 +179,73 @@ export const Header: React.FC<HeaderProps> = ({ onOpenLabelManager }) => {
     }
   };
 
+  // 处理设置菜单点击
+  const handleSettingsClick = (dropdownItem: DropdownOption) => {
+    const value = dropdownItem.value as string;
+    switch (value) {
+      case 'token':
+        handleOpenTokenModal();
+        break;
+      case 'labels':
+        onOpenLabelManager();
+        break;
+      case 'sync':
+        setShowSyncSettings(true);
+        break;
+    }
+  };
+
   return (
     <header style={{
-      padding: '16px 24px',
+      padding: '12px 24px',
       background: '#fff',
       borderBottom: '1px solid #e7e7e7',
       display: 'flex',
       justifyContent: 'space-between',
-      alignItems: 'center'
+      alignItems: 'center',
+      position: 'sticky',
+      top: 0,
+      zIndex: 100,
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 600 }}>GitHub Star Manager</h1>
+      {/* 左侧：Logo + 用户信息 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        <h1 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: '#0052cc' }}>
+          ⭐ GitHub Star Manager
+        </h1>
         {user && (
-          <Space>
+          <Space size="small">
             <img src={user.avatar_url} alt={user.login} style={{ width: '24px', height: '24px', borderRadius: '50%' }} />
-            <span>{user.login}</span>
+            <span style={{ fontSize: '14px', color: '#666' }}>{user.login}</span>
           </Space>
         )}
       </div>
 
-      <Space>
+      {/* 右侧：主要操作 */}
+      <Space size="small">
         {/* 最后同步时间 */}
         {lastSyncTime > 0 && (
-          <span style={{ fontSize: '12px', color: '#8c8c8c', marginRight: '4px' }}>
-            最后同步: {new Date(lastSyncTime).toLocaleString('zh-CN', { 
-              month: 'numeric', 
-              day: 'numeric', 
-              hour: '2-digit', 
-              minute: '2-digit' 
-            })}
-          </span>
+          <Popup content="最后同步时间" placement="bottom">
+            <span style={{ 
+              fontSize: '12px', 
+              color: '#8c8c8c',
+              padding: '4px 8px',
+              background: '#f5f5f5',
+              borderRadius: '4px',
+            }}>
+              {new Date(lastSyncTime).toLocaleString('zh-CN', { 
+                month: 'numeric', 
+                day: 'numeric', 
+                hour: '2-digit', 
+                minute: '2-digit' 
+              })}
+            </span>
+          </Popup>
         )}
         
-        {/* 同步 Stars */}
+        {/* 主要操作按钮 */}
         <Button onClick={handleSyncStars} loading={loadingStars} title="从 GitHub 拉取最新的 Stars 列表">
           同步 Stars
         </Button>
-
-        {/* 自动标签 */}
         <Button 
           theme="primary"
           onClick={() => setShowAutoTagger(true)} 
@@ -219,27 +254,22 @@ export const Header: React.FC<HeaderProps> = ({ onOpenLabelManager }) => {
         >
           自动标签
         </Button>
-
-        {/* 根据是否设置同步仓库显示不同按钮 */}
-        {syncRepo ? (
+        {syncRepo && (
           <Button onClick={handlePushToRepo} loading={syncing} title="将 Stars 数据推送到选定的仓库">
-            推送到仓库
-          </Button>
-        ) : (
-          <Button variant="outline" onClick={() => setShowSyncSettings(true)} title="选择或创建用于同步的仓库">
-            同步设置
+            推送
           </Button>
         )}
 
-        {/* 标签设置 */}
-        <Button variant="outline" onClick={onOpenLabelManager} title="管理标签，创建、编辑或删除标签">
-          标签设置 {labels.length > 0 && `(${labels.length})`}
-        </Button>
-
-        {/* 设置 Token */}
-        <Button variant="outline" onClick={handleOpenTokenModal} title="设置或更新 GitHub Personal Access Token">
-          设置 Token
-        </Button>
+        {/* 设置下拉菜单 */}
+        <Dropdown 
+          options={settingsOptions} 
+          onClick={handleSettingsClick}
+          placement="bottom-right"
+        >
+          <Button variant="outline" icon={<span>⚙️</span>}>
+            设置
+          </Button>
+        </Dropdown>
       </Space>
 
       {/* 设置 Token 弹窗 */}

@@ -1,5 +1,5 @@
 import React, { useState, memo, useMemo } from 'react';
-import { Tag, Space, Button } from 'tdesign-react';
+import { Tag, Button } from 'tdesign-react';
 import { GitHubRepo, Label } from '../types';
 import { useAppStore } from '../stores/app';
 import { LabelSelector } from './LabelSelector';
@@ -45,40 +45,47 @@ export const StarCard: React.FC<StarCardProps> = memo(({ repo }) => {
       <div
         style={{
           backgroundColor: '#fff',
-          borderRadius: '8px',
-          padding: '16px',
-          marginBottom: '12px',
+          borderRadius: '12px',
+          padding: '20px',
+          marginBottom: '16px',
           cursor: 'pointer',
-          transition: 'box-shadow 0.2s',
+          transition: 'all 0.3s ease',
+          border: '1px solid #e7e7e7',
         }}
         onClick={() => window.open(repo.html_url, '_blank')}
         onMouseEnter={(e) => {
-          e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
+          e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
+          e.currentTarget.style.borderColor = '#0052cc';
+          e.currentTarget.style.transform = 'translateY(-2px)';
         }}
         onMouseLeave={(e) => {
           e.currentTarget.style.boxShadow = 'none';
+          e.currentTarget.style.borderColor = '#e7e7e7';
+          e.currentTarget.style.transform = 'translateY(0)';
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        {/* 顶部：仓库名 + 头像 + 统计信息 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+          <img
+            src={repo.owner.avatar_url}
+            alt={repo.owner.login}
+            style={{ width: '32px', height: '32px', borderRadius: '50%' }}
+          />
           <div style={{ flex: 1 }}>
-            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-              <img
-                src={repo.owner.avatar_url}
-                alt={repo.owner.login}
-                style={{ width: '20px', height: '20px', borderRadius: '50%', marginRight: '8px' }}
-              />
-              <span style={{ fontWeight: 600, color: '#0052cc' }}>{repo.full_name}</span>
-            </div>
-
-            <p style={{ color: '#666', fontSize: '14px', marginBottom: '8px' }}>
-              {repo.description || '暂无描述'}
-            </p>
-
-            <Space size="small">
-              <span>⭐ {formattedStars}</span>
+            <h3 style={{ 
+              margin: 0, 
+              fontSize: '16px', 
+              fontWeight: 600, 
+              color: '#0052cc',
+              marginBottom: '4px'
+            }}>
+              {repo.full_name}
+            </h3>
+            <div style={{ display: 'flex', gap: '16px', fontSize: '13px', color: '#666' }}>
+              <span>⭐ {formattedStars} stars</span>
               {repo.language && <span>● {repo.language}</span>}
               <span>📅 {formattedDate}</span>
-            </Space>
+            </div>
           </div>
 
           <div onClick={(e) => e.stopPropagation()}>
@@ -87,24 +94,49 @@ export const StarCard: React.FC<StarCardProps> = memo(({ repo }) => {
               variant="outline"
               onClick={() => setShowLabelSelector(true)}
               title="为该项目添加或管理标签"
+              style={{ 
+                borderRadius: '6px',
+                minWidth: '100px'
+              }}
             >
-              {repoLabels.length > 0 ? `${repoLabels.length} 个标签` : '添加标签'}
+              {repoLabels.length > 0 ? `📌 ${repoLabels.length}` : '📌 添加标签'}
             </Button>
           </div>
         </div>
 
+        {/* 中部：描述 */}
+        <p style={{ 
+          color: '#333', 
+          fontSize: '14px', 
+          marginBottom: '12px',
+          lineHeight: 1.6,
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+        }}>
+          {repo.description || '暂无描述'}
+        </p>
+
+        {/* 底部：备注和标签 */}
         {(repoLabels.length > 0 || remark) && (
-          <div style={{ marginTop: '12px' }}>
+          <div style={{ 
+            paddingTop: '12px',
+            borderTop: '1px solid #f0f0f0',
+          }}>
             {remark && (
               <div style={{ 
-                fontSize: '12px', 
+                fontSize: '13px', 
                 color: '#666', 
-                backgroundColor: '#f5f5f5',
-                padding: '4px 8px',
-                borderRadius: '4px',
+                backgroundColor: '#f7f7f7',
+                padding: '8px 12px',
+                borderRadius: '6px',
                 marginBottom: '8px',
+                fontStyle: 'italic',
+                borderLeft: '3px solid #0052cc',
               }}>
-                {'> ' + remark}
+                💭 {remark}
               </div>
             )}
             {repoLabels.length > 0 && (
@@ -116,6 +148,9 @@ export const StarCard: React.FC<StarCardProps> = memo(({ repo }) => {
                       backgroundColor: label.color,
                       color: '#fff',
                       border: 'none',
+                      fontSize: '12px',
+                      padding: '4px 12px',
+                      borderRadius: '12px',
                     }}
                   >
                     {label.type === 'generated' && '✨ '}{label.name}

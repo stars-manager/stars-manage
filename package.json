@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@octokit/core": "^7.0.6",
+    "@tdesign-react/chat": "^1.0.2",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "tdesign-react": "^1.16.7",
