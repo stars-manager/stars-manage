@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { Button, Space, Tag, Input } from 'tdesign-react';
-import { ConfigStepProps, RepoTagStats } from './types';
+import { Button, Space, Tag, Input, Tree } from 'tdesign-react';
+import { ConfigStepProps } from './types';
 import { GitHubRepo } from '../../types';
 import { buildTreeData, calculateTreeChecked, parseTreeValue } from '../../utils/autoTaggerUtils';
 import { useAppStore } from '../../stores/app';

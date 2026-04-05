@@ -316,28 +316,35 @@ const stateCreator: StateCreator<AppState> = (set, get) => ({
   },
 
   // 查找或创建标签（根据名称）
+  // 修复竞态条件：在 set 回调内部再次检查，确保原子性操作
   findOrCreateLabelByName: (name: string, type: 'custom' | 'generated'): string => {
-    const { labels } = get();
+    let existingLabelId: string | undefined;
     
-    // 检查是否已存在同名标签
-    const existingLabel = labels.find(l => l.name === name);
-    if (existingLabel) {
-      return existingLabel.id;
-    }
+    set((state) => {
+      // 在 set 回调内部检查，避免竞态条件
+      const existingLabel = state.labels.find(l => l.name === name);
+      
+      if (existingLabel) {
+        existingLabelId = existingLabel.id;
+        return state; // 不做任何修改
+      }
+      
+      // 创建新标签
+      const id = generateId();
+      const colors = [
+        '#0052D9', '#2BA47D', '#E37318', '#E34D59', '#ED7B2F',
+        '#8E4EC6', '#0594FA', '#29B4BA', '#C45F9E', '#6E5FAD'
+      ];
+      const color = colors[Math.floor(Math.random() * colors.length)];
+      
+      existingLabelId = id;
+      
+      return {
+        labels: [...state.labels, { id, name, color, type }]
+      };
+    });
     
-    // 创建新标签并直接更新状态
-    const id = generateId();
-    const colors = [
-      '#0052D9', '#2BA47D', '#E37318', '#E34D59', '#ED7B2F',
-      '#8E4EC6', '#0594FA', '#29B4BA', '#C45F9E', '#6E5FAD'
-    ];
-    const color = colors[Math.floor(Math.random() * colors.length)];
-    
-    set((state) => ({
-      labels: [...state.labels, { id, name, color, type }]
-    }));
-    
-    return id;
+    return existingLabelId!;
   },
 
   // 切换批量选择模式

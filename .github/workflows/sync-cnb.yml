@@ -1,0 +1,25 @@
+# .github/workflows/sync-cnb.yml
+# Sync frontend code to CNB platform
+
+name: Sync to CNB
+on: [push]
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Sync to CNB Client Repository
+        uses: docker://tencentcom/git-sync
+        env:
+          # 目标仓库：CNB 平台的 client 仓库
+          PLUGIN_TARGET_URL: "https://cnb.cool/rss1102.cnb/github-stars-manage/client.git"
+          PLUGIN_AUTH_TYPE: "https"
+          PLUGIN_USERNAME: "cnb"
+          # GitHub Secret 中配置的 CNB Token
+          PLUGIN_PASSWORD: ${{ secrets.SYNC_TO_CNB_TOKEN_STARS }}
+          # 强制同步，保持与源仓库一致
+          PLUGIN_FORCE: "true"

@@ -1,4 +1,4 @@
-import React, { useState, memo, useCallback } from 'react';
+import React, { useState, memo, useCallback, useMemo } from 'react';
 import { Tag, Button } from 'tdesign-react';
 import { GitHubRepo, Label } from '../types';
 import { useAppStore } from '../stores/app';
@@ -10,7 +10,6 @@ interface StarCardProps {
 
 // 使用 React.memo 优化性能，只在 repo 变化时重新渲染
 export const StarCard: React.FC<StarCardProps> = memo(({ repo }) => {
-  const getRepoRemark = useAppStore(state => state.getRepoRemark);
   const [showLabelSelector, setShowLabelSelector] = useState(false);
 
   // 使用 Zustand 选择器直接获取计算后的标签数据，避免不必要的重渲染
@@ -23,7 +22,11 @@ export const StarCard: React.FC<StarCardProps> = memo(({ repo }) => {
       return repoLabelIds.map(id => state.labels.find(l => l.id === id)).filter(Boolean) as Label[];
     }, [repo.full_name])
   );
-  const remark = getRepoRemark(repo.full_name);
+  
+  // 使用 Zustand 选择器获取备注，避免每次渲染都调用方法
+  const remark = useAppStore(
+    useCallback(state => state.repos[repo.full_name]?.remark || '', [repo.full_name])
+  );
 
   // 使用 useMemo 缓存格式化函数的结果
   const formattedDate = useMemo(() => {

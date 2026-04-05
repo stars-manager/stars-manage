@@ -2,43 +2,29 @@
 
 一个用于智能管理 GitHub Star（收藏）的 Web 应用，支持 AI 自动标签生成和智能搜索。
 
-## ✨ 功能特性
+## ✨ 主要功能
 
 ### 📥 GitHub Stars 管理
 - **同步 Stars** - 一键从 GitHub 拉取所有 Star 项目
-- **智能搜索** - 模糊搜索项目名称、描述
+- **智能搜索** - 模糊搜索项目名称、描述、语言
 - **AI 思考助手** - 通过对话式交互智能推荐项目
 - **虚拟滚动** - 高效渲染大量项目列表
 
 ### 🏷️ 标签系统
-- **自定义标签** - 手动创建和管理标签
-- **AI 自动标签** - 基于腾讯混元大模型自动生成标签
+- **自定义标签** - 手动创建和管理标签，支持颜色设置
+- **AI 自动标签** - 基于腾讯混元大模型自动生成标签建议
 - **标签筛选** - 按标签快速过滤项目
-- **批量操作** - 批量添加、删除标签
+- **批量操作** - 批量添加、删除标签，提升效率
 
 ### 🔐 安全认证
-- **OAuth 登录** - GitHub OAuth 安全认证
-- **Session 管理** - 基于 Cookie 的会话管理
-- **后端代理** - 所有 API 请求通过后端代理
+- **OAuth 登录** - GitHub OAuth 安全认证，无需 Personal Access Token
+- **Session 管理** - 基于 HttpOnly Cookie 的安全会话管理
+- **后端代理** - 所有敏感 API 请求通过后端代理，保护密钥安全
 
 ### 📦 数据同步
-- **GitHub 存储** - 数据存储在 GitHub 私有仓库
-- **JSON 格式** - 结构化数据格式
-- **README 生成** - 自动生成可读的 README 文档
-
-## 🛠️ 技术栈
-
-### 前端
-- **React 19** + **TypeScript**
-- **Vite** - 构建工具
-- **TDesign React** - UI 组件库
-- **Zustand** - 状态管理
-- **React Router** - 路由管理
-
-### 后端
-- **Go** - 服务端语言
-- **Gin** - Web 框架
-- **腾讯混元** - LLM 服务
+- **GitHub 存储** - 数据存储在 GitHub 私有仓库，安全可控
+- **JSON 格式** - 结构化数据格式，便于版本管理和备份
+- **README 生成** - 自动生成可读的 README 文档，方便分享
 
 ## 🚀 快速开始
 
@@ -46,17 +32,17 @@
 
 - Node.js 18+
 - pnpm 8+
-- Go 1.21+
-- GitHub OAuth App（[创建指南](../SECURITY.md)）
-- 腾讯混元 API Key（[获取地址](https://console.cloud.tencent.com/hunyuan)）
+- Go 1.21+（后端服务）
+- GitHub OAuth App
+- 腾讯混元 API Key
 
 ### 安装依赖
 
 ```bash
-# 安装前端依赖
+# 前端依赖
 pnpm install
 
-# 安装后端依赖
+# 后端依赖
 cd ../stars-server
 go mod tidy
 ```
@@ -98,6 +84,20 @@ pnpm dev
 ```bash
 pnpm build
 ```
+
+## 🛠️ 技术栈
+
+### 前端
+- **React 19** + **TypeScript** - 现代化前端框架
+- **Vite 8** - 极速构建工具
+- **TDesign React** - 企业级 UI 组件库
+- **Zustand** - 轻量级状态管理
+- **UnoCSS** - 原子化 CSS 引擎
+
+### 后端
+- **Go** - 高性能服务端语言
+- **Gin** - 轻量级 Web 框架
+- **腾讯混元** - 大语言模型服务
 
 ## 📖 使用指南
 
@@ -156,54 +156,13 @@ pnpm build
 stars-manage/
 ├── src/
 │   ├── api/              # API 调用
-│   │   ├── auth.ts       # 认证 API
-│   │   ├── github-proxy.ts  # GitHub API 代理
-│   │   └── server.ts     # 后端服务 API
 │   ├── components/       # React 组件
-│   │   ├── AutoTagger/   # 自动标签组件
-│   │   ├── Header.tsx    # 导航栏
-│   │   ├── StarCard.tsx  # 项目卡片
-│   │   ├── StarList.tsx  # 项目列表
-│   │   └── ...
-│   ├── stores/           # Zustand 状态管理
-│   │   └── app.ts        # 全局状态
-│   ├── services/         # 服务层
-│   │   ├── apiClient.ts  # 统一 API 客户端
-│   │   └── logger.ts     # 日志服务
-│   ├── config/           # 配置管理
-│   ├── types/            # TypeScript 类型定义
+│   ├── stores/           # 状态管理
+│   ├── types/            # 类型定义
 │   └── utils/            # 工具函数
-├── tests/                # 单元测试
 ├── public/               # 静态资源
-└── package.json
+└── package.json          # 项目配置
 ```
-
-## 🧪 开发指南
-
-### 代码规范
-
-项目使用以下工具保证代码质量：
-- **ESLint 9** - 代码检查
-- **Prettier** - 代码格式化
-- **TypeScript strict mode** - 类型检查
-
-```bash
-# 运行 lint
-pnpm run lint
-
-# 类型检查
-pnpm run type-check
-
-# 运行测试
-pnpm run test
-```
-
-### 开发工具
-
-推荐使用 VSCode，并安装以下扩展：
-- ESLint
-- Prettier
-- TypeScript
 
 ## 🔒 安全配置
 
@@ -211,7 +170,7 @@ pnpm run test
 
 ### 关键安全措施
 
-1. **OAuth 认证** - 不再使用 Personal Access Token
+1. **OAuth 认证** - 不使用 Personal Access Token
 2. **HttpOnly Cookie** - Session 存储在安全 Cookie 中
 3. **后端代理** - 所有敏感 API 通过后端代理
 4. **环境变量** - 密钥通过环境变量配置
@@ -240,4 +199,3 @@ Apache 2.0
 
 - [TDesign](https://tdesign.tencent.com/) - 腾讯开源 UI 组件库
 - [腾讯混元](https://hunyuan.tencent.com/) - 大语言模型服务
-- [Octokit](https://github.com/octokit) - GitHub API 客户端

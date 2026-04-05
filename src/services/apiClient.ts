@@ -1,241 +1,168 @@
 /**
  * 统一 API 客户端
- * 提供超时控制、自动重试、统一错误处理
+ * 
+ * 功能：
+ * - 请求超时控制
+ * - 自动重试机制
+ * - 统一错误处理
+ * - 请求/响应拦截器
  */
 
-export class ApiError extends Error {
-  constructor(
-    message: string,
-    public code: string,
-    public statusCode?: number,
-    public retryable: boolean = false
-  ) {
+export interface ApiError {
+  code: string;
+  message: string;
+  details?: unknown;
+}
+
+export class ApiClientError extends Error {
+  public readonly code: string;
+  public readonly details?: unknown;
+
+  constructor(code: string, message: string, details?: unknown) {
     super(message);
-    this.name = 'ApiError';
+    this.name = 'ApiClientError';
+    this.code = code;
+    this.details = details;
   }
 }
 
-export interface ApiClientConfig {
-  baseURL: string;
-  timeout?: number; // 超时时间（毫秒）
-  maxRetries?: number; // 最大重试次数
-  retryDelay?: number; // 重试延迟（毫秒）
-}
-
-export interface RequestOptions {
-  method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
-  headers?: Record<string, string>;
-  body?: unknown;
+export interface RequestConfig {
   timeout?: number;
-  retryable?: boolean; // 是否可重试
+  retries?: number;
+  retryDelay?: number;
 }
 
-export class ApiClient {
-  private baseURL: string;
-  private timeout: number;
+class ApiClient {
+  private baseUrl: string;
+  private defaultTimeout: number;
   private maxRetries: number;
   private retryDelay: number;
 
-  constructor(config: ApiClientConfig) {
-    this.baseURL = config.baseURL;
-    this.timeout = config.timeout ?? 30000; // 默认 30 秒
-    this.maxRetries = config.maxRetries ?? 3; // 默认重试 3 次
-    this.retryDelay = config.retryDelay ?? 1000; // 默认延迟 1 秒
+  constructor(baseUrl: string = '', config?: RequestConfig) {
+    this.baseUrl = baseUrl;
+    this.defaultTimeout = config?.timeout || 30000; // 30 秒
+    this.maxRetries = config?.retries || 3; // 最多重试 3 次
+    this.retryDelay = config?.retryDelay || 1000; // 重试延迟 1 秒
   }
 
   /**
-   * 发起请求
+   * 统一请求方法
    */
-  async request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
-    const {
-      method = 'GET',
-      headers = {},
-      body,
-      timeout = this.timeout,
-      retryable = true,
-    } = options;
+  async request<T>(endpoint: string, options: RequestInit & RequestConfig = {}): Promise<T> {
+    const url = `${this.baseUrl}${endpoint}`;
+    const timeout = options.timeout || this.defaultTimeout;
+    const retries = options.retries ?? this.maxRetries;
 
-    const url = `${this.baseURL}${endpoint}`;
-    const requestHeaders: Record<string, string> = {
-      'Content-Type': 'application/json',
-      ...headers,
-    };
+    let lastError: Error | null = null;
 
-    // 添加认证 token（如果存在）
-    const token = localStorage.getItem('github_token');
-    if (token) {
-      requestHeaders['Authorization'] = `Bearer ${token}`;
-    }
-
-    const fetchOptions: RequestInit = {
-      method,
-      headers: requestHeaders,
-    };
-
-    if (body && method !== 'GET') {
-      fetchOptions.body = JSON.stringify(body);
-    }
-
-    // 重试逻辑
-    let lastError: ApiError | null = null;
-    const maxAttempts = retryable ? this.maxRetries + 1 : 1;
-
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    for (let attempt = 0; attempt <= retries; attempt++) {
       try {
-        // 创建超时控制器
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeout);
 
         const response = await fetch(url, {
-          ...fetchOptions,
+          ...options,
           signal: controller.signal,
+          headers: {
+            'Content-Type': 'application/json',
+            ...options.headers,
+          },
         });
 
         clearTimeout(timeoutId);
 
-        // 检查 HTTP 状态码
         if (!response.ok) {
-          const errorData = await this.parseErrorResponse(response);
-          throw new ApiError(
-            errorData.message || `HTTP ${response.status}: ${response.statusText}`,
-            errorData.code || 'HTTP_ERROR',
-            response.status,
-            this.isRetryableStatus(response.status)
-          );
+          const error = await this.parseErrorResponse(response);
+          throw new ApiClientError(error.code, error.message, error.details);
         }
 
-        // 解析响应
         const data = await response.json();
         return data as T;
       } catch (error) {
-        if (error instanceof ApiError) {
-          lastError = error;
-          // 如果不可重试或已达最大重试次数，抛出错误
-          if (!error.retryable || attempt === maxAttempts) {
-            throw error;
-          }
-        } else if (error instanceof Error) {
-          // 处理 AbortError（超时）
-          if (error.name === 'AbortError') {
-            lastError = new ApiError(
-              '请求超时，请检查网络连接',
-              'TIMEOUT_ERROR',
-              undefined,
-              true
-            );
-          } else {
-            lastError = new ApiError(
-              error.message || '网络请求失败',
-              'NETWORK_ERROR',
-              undefined,
-              true
-            );
-          }
+        lastError = error instanceof Error ? error : new Error(String(error));
 
-          // 如果已达最大重试次数，抛出错误
-          if (attempt === maxAttempts) {
-            throw lastError;
-          }
+        // 如果是取消请求，不重试
+        if ((error as Error).name === 'AbortError') {
+          throw new ApiClientError('TIMEOUT', '请求超时');
         }
 
-        // 延迟重试
-        if (attempt < maxAttempts) {
-          await this.delay(this.retryDelay * attempt);
+        // 如果是最后一次尝试，抛出错误
+        if (attempt === retries) {
+          break;
         }
+
+        // 等待后重试
+        await new Promise(resolve => setTimeout(resolve, this.retryDelay * Math.pow(2, attempt)));
       }
     }
 
-    throw lastError || new ApiError('未知错误', 'UNKNOWN_ERROR');
-  }
-
-  /**
-   * 解析错误响应
-   */
-  private async parseErrorResponse(response: Response): Promise<{ message: string; code?: string }> {
-    try {
-      const data = await response.json();
-      return {
-        message: data.message || data.error || '请求失败',
-        code: data.code || data.error_code,
-      };
-    } catch {
-      return {
-        message: `HTTP ${response.status}: ${response.statusText}`,
-      };
-    }
-  }
-
-  /**
-   * 判断 HTTP 状态码是否可重试
-   */
-  private isRetryableStatus(status: number): boolean {
-    // 5xx 服务器错误和 429 请求过多可以重试
-    return status >= 500 || status === 429;
-  }
-
-  /**
-   * 延迟函数
-   */
-  private delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+    throw lastError || new ApiClientError('UNKNOWN_ERROR', '未知错误');
   }
 
   /**
    * GET 请求
    */
-  async get<T>(endpoint: string, options?: Omit<RequestOptions, 'method' | 'body'>): Promise<T> {
-    return this.request<T>(endpoint, { ...options, method: 'GET' });
+  async get<T>(endpoint: string, config?: RequestConfig): Promise<T> {
+    return this.request<T>(endpoint, { ...config, method: 'GET' });
   }
 
   /**
    * POST 请求
    */
-  async post<T>(endpoint: string, body?: unknown, options?: Omit<RequestOptions, 'method'>): Promise<T> {
-    return this.request<T>(endpoint, { ...options, method: 'POST', body });
+  async post<T>(endpoint: string, data?: unknown, config?: RequestConfig): Promise<T> {
+    return this.request<T>(endpoint, {
+      ...config,
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   }
 
   /**
    * PUT 请求
    */
-  async put<T>(endpoint: string, body?: unknown, options?: Omit<RequestOptions, 'method'>): Promise<T> {
-    return this.request<T>(endpoint, { ...options, method: 'PUT', body });
+  async put<T>(endpoint: string, data?: unknown, config?: RequestConfig): Promise<T> {
+    return this.request<T>(endpoint, {
+      ...config,
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
   }
 
   /**
    * DELETE 请求
    */
-  async delete<T>(endpoint: string, options?: Omit<RequestOptions, 'method'>): Promise<T> {
-    return this.request<T>(endpoint, { ...options, method: 'DELETE' });
+  async delete<T>(endpoint: string, config?: RequestConfig): Promise<T> {
+    return this.request<T>(endpoint, { ...config, method: 'DELETE' });
   }
 
   /**
-   * PATCH 请求
+   * 解析错误响应
    */
-  async patch<T>(endpoint: string, body?: unknown, options?: Omit<RequestOptions, 'method'>): Promise<T> {
-    return this.request<T>(endpoint, { ...options, method: 'PATCH', body });
+  private async parseErrorResponse(response: Response): Promise<ApiError> {
+    try {
+      const text = await response.text();
+      if (!text) {
+        return {
+          code: 'HTTP_ERROR',
+          message: `HTTP ${response.status}: ${response.statusText}`,
+        };
+      }
+      return JSON.parse(text) as ApiError;
+    } catch {
+      return {
+        code: 'PARSE_ERROR',
+        message: `HTTP ${response.status}: ${response.statusText}`,
+      };
+    }
   }
 }
 
 // 创建默认实例
-export const defaultApiClient = new ApiClient({
-  baseURL: '',
-  timeout: 30000,
-  maxRetries: 3,
-  retryDelay: 1000,
-});
+export const apiClient = new ApiClient();
 
-// 创建 GitHub API 客户端
-export const githubApiClient = new ApiClient({
-  baseURL: 'https://api.github.com',
+// 创建服务端 API 客户端实例
+export const serverApiClient = new ApiClient('/api', {
   timeout: 30000,
-  maxRetries: 3,
-  retryDelay: 1000,
-});
-
-// 创建后端服务 API 客户端
-export const serverApiClient = new ApiClient({
-  baseURL: 'http://localhost:8080',
-  timeout: 30000,
-  maxRetries: 3,
+  retries: 3,
   retryDelay: 1000,
 });

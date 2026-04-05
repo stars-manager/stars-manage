@@ -1,19 +1,8 @@
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+/* ============================================
+   全局样式（保留必要的样式）
+   ============================================ */
 
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  background: #fafafa;
-}
-
-#root {
-  min-height: 100vh;
-}
+/* 基础重置（UnoCSS Reset 已处理，此处仅保留特殊样式） */
 
 /* 滚动条美化 */
 ::-webkit-scrollbar {
@@ -34,50 +23,6 @@ body {
   background: #a8a8a8;
 }
 
-/* 输入框聚焦动画 */
-input:focus,
-textarea:focus,
-select:focus {
-  outline: none;
-  transition: box-shadow 0.2s;
-}
-
-/* 按钮过渡效果 */
-button {
-  transition: all 0.2s ease;
-}
-
-/* 卡片悬停效果 */
-.t-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-}
-
-/* 响应式布局 */
-@media (max-width: 768px) {
-  header {
-    padding: 12px 16px !important;
-  }
-  
-  header h1 {
-    font-size: 16px !important;
-  }
-}
-
-@media (max-width: 480px) {
-  header {
-    flex-direction: column;
-    gap: 12px;
-    align-items: flex-start !important;
-  }
-  
-  header > div:last-child {
-    width: 100%;
-    justify-content: flex-start !important;
-    flex-wrap: wrap;
-  }
-}
-
 /* 动画关键帧 */
 @keyframes fadeIn {
   from {
@@ -90,7 +35,15 @@ button {
   }
 }
 
-.fadeIn {
-  animation: fadeIn 0.3s ease;
+/* TDesign 卡片悬停效果 */
+.t-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
+/*
+ * 说明：
+ * 1. 基础重置由 @unocss/reset/tailwind.css 处理
+ * 2. 布局和响应式使用 UnoCSS 原子类
+ * 3. 此文件仅保留无法用 UnoCSS 实现的全局样式
+ */

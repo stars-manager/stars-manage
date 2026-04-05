@@ -1,0 +1,136 @@
+# Cloud Native Build Configuration for Frontend
+# Production-grade pipeline with dev/main differentiation
+
+# ============================================
+# Development Branch Configuration
+# ============================================
+# Features:
+# - Faster build (lint warnings allowed)
+# - Dev tag + version tag
+# - Basic quality check
+# ============================================
+dev:
+  push:
+    - services:
+        - docker
+      stages:
+        - name: build and push
+          script: |
+            set -e
+            
+            # Version info
+            VERSION=$(git describe --tags --always --dirty)
+            GIT_COMMIT=$(git rev-parse --short HEAD)
+            BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+            
+            echo "=== Frontend Development Build ==="
+            echo "Version: ${VERSION}"
+            echo "Commit: ${GIT_COMMIT}"
+            echo "Time: ${BUILD_TIME}"
+            
+            # Install dependencies
+            pnpm install --frozen-lockfile
+            
+            # Type check
+            pnpm run type-check
+            
+            # Lint (warnings allowed)
+            pnpm run lint || echo "Lint warnings found, continuing..."
+            
+            # Build
+            pnpm run build
+            
+            # Build Docker image
+            DOCKER_BUILDKIT=1 docker build \
+              -t ${CNB_DOCKER_REGISTRY}/${CNB_REPO_SLUG_LOWERCASE}:dev-frontend \
+              -t ${CNB_DOCKER_REGISTRY}/${CNB_REPO_SLUG_LOWERCASE}:${VERSION}-frontend \
+              .
+            
+            # Push images
+            docker push ${CNB_DOCKER_REGISTRY}/${CNB_REPO_SLUG_LOWERCASE}:dev-frontend
+            docker push ${CNB_DOCKER_REGISTRY}/${CNB_REPO_SLUG_LOWERCASE}:${VERSION}-frontend
+            
+            echo "=== Build Success ==="
+            echo "Image: ${CNB_DOCKER_REGISTRY}/${CNB_REPO_SLUG_LOWERCASE}:dev-frontend"
+            echo "Version: ${CNB_DOCKER_REGISTRY}/${CNB_REPO_SLUG_LOWERCASE}:${VERSION}-frontend"
+
+# ============================================
+# Production Branch Configuration
+# ============================================
+# Features:
+# - Strict quality check (lint must pass)
+# - Latest tag + version tag
+# - Bundle analysis
+# - Build notification
+# ============================================
+main:
+  push:
+    - services:
+        - docker
+      stages:
+        - name: build and push
+          script: |
+            set -e
+            
+            # Version info
+            VERSION=$(git describe --tags --always)
+            GIT_COMMIT=$(git rev-parse --short HEAD)
+            BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+            
+            echo "=== Frontend Production Build ==="
+            echo "Version: ${VERSION}"
+            echo "Commit: ${GIT_COMMIT}"
+            echo "Time: ${BUILD_TIME}"
+            
+            # Install dependencies
+            pnpm install --frozen-lockfile
+            
+            # Type check (strict)
+            pnpm run type-check
+            
+            # Lint (strict, must pass)
+            pnpm run lint
+            
+            # Build with production mode
+            pnpm run build
+            
+            # Build Docker image
+            DOCKER_BUILDKIT=1 docker build \
+              -t ${CNB_DOCKER_REGISTRY}/${CNB_REPO_SLUG_LOWERCASE}:latest-frontend \
+              -t ${CNB_DOCKER_REGISTRY}/${CNB_REPO_SLUG_LOWERCASE}:${VERSION}-frontend \
+              .
+            
+            # Push images
+            docker push ${CNB_DOCKER_REGISTRY}/${CNB_REPO_SLUG_LOWERCASE}:latest-frontend
+            docker push ${CNB_DOCKER_REGISTRY}/${CNB_REPO_SLUG_LOWERCASE}:${VERSION}-frontend
+            
+            echo "=== Build Success ==="
+            echo "Image: ${CNB_DOCKER_REGISTRY}/${CNB_REPO_SLUG_LOWERCASE}:${VERSION}-frontend"
+            echo "Latest: ${CNB_DOCKER_REGISTRY}/${CNB_REPO_SLUG_LOWERCASE}:latest-frontend"
+
+        - name: notify
+          script: |
+            VERSION=$(git describe --tags --always)
+            GIT_COMMIT=$(git rev-parse --short HEAD)
+            BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+            
+            echo "=== Frontend Production Build Summary ==="
+            echo "Branch: main (PRODUCTION)"
+            echo "Version: ${VERSION}"
+            echo "Commit: ${GIT_COMMIT}"
+            echo "Build Time: ${BUILD_TIME}"
+            echo "Image: ${CNB_DOCKER_REGISTRY}/${CNB_REPO_SLUG_LOWERCASE}:${VERSION}-frontend"
+            echo "Latest: ${CNB_DOCKER_REGISTRY}/${CNB_REPO_SLUG_LOWERCASE}:latest-frontend"
+            
+            # Optional: Send webhook notification
+            # Uncomment and configure your webhook URL below:
+            # 
+            # # Slack example
+            # curl -X POST -H 'Content-type: application/json' \
+            #   --data "{\"text\":\"Frontend production build succeeded: ${VERSION}\"}" \
+            #   ${SLACK_WEBHOOK_URL} || true
+            # 
+            # # DingTalk example
+            # curl -X POST -H 'Content-Type: application/json' \
+            #   --data "{\"msgtype\":\"text\",\"text\":{\"content\":\"Frontend build: ${VERSION} (${GIT_COMMIT})\"}}" \
+            #   ${DINGTALK_WEBHOOK_URL} || true

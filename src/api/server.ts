@@ -1,6 +1,14 @@
 // 后端服务 API 调用
 // 开发环境通过 Vite 代理访问，生产环境使用相对路径
-import { serverApiClient, ApiError } from '../services/apiClient';
+import { serverApiClient } from '../services/apiClient';
+
+// 自定义 API 错误类
+class ApiError extends Error {
+  constructor(message: string, public statusCode?: number) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
 
 // 项目信息（用于标签生成）
 export interface ProjectInfoForTags {
@@ -58,9 +66,9 @@ export interface ChatResponse {
 export async function generateStarsTags(request: StarsTagsRequest): Promise<StarsTagsResponse> {
   try {
     return await serverApiClient.post<StarsTagsResponse>('/api/v1/stars/tags', request);
-  } catch (error) {
+  } catch (error: unknown) {
     if (error instanceof ApiError) {
-      throw new Error(error.message);
+      throw new Error(error.message, { cause: error });
     }
     throw error;
   }
@@ -70,9 +78,9 @@ export async function generateStarsTags(request: StarsTagsRequest): Promise<Star
 export async function chat(request: ChatRequest): Promise<ChatResponse> {
   try {
     return await serverApiClient.post<ChatResponse>('/api/v1/chat/message', request);
-  } catch (error) {
+  } catch (error: unknown) {
     if (error instanceof ApiError) {
-      throw new Error(error.message);
+      throw new Error(error.message, { cause: error });
     }
     throw error;
   }
@@ -82,12 +90,10 @@ export async function chat(request: ChatRequest): Promise<ChatResponse> {
 export async function clearChatSession(sessionId: string): Promise<void> {
   try {
     await serverApiClient.delete(`/api/v1/chat/session/${sessionId}`);
-  } catch (error) {
+  } catch (error: unknown) {
     if (error instanceof ApiError) {
-      throw new Error(error.message);
+      throw new Error(error.message, { cause: error });
     }
     throw error;
-  }
-}
   }
 }
